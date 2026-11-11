@@ -62,7 +62,7 @@ local reltags = {"\x7f","&","\x0b\x0c","\x0b","\x0c","\x99"}
 local scr = math.floor(settings.get("reader.savestate.char",0)/(w-1))
 local chap = settings.get("reader.savestate.chapter",0) -- 0 is tag page
 local file = settings.get("reader.savestate.file",nil)
-if file~=args[1] then
+if args[1] and file~=args[1] then
   file=args[1]
   chap=0
   scr=0
@@ -142,6 +142,7 @@ local function processTextToLineTable(text)
     end
     el=el+1
   end
+  table.insert(result,"") -- last line deletes itself sometimes for some reason, so if this is the last line nobody will notice
   return result
 end
 local function saveAndExit() -- todo: fix functions taking globals
@@ -227,7 +228,7 @@ end
 
 local textwindow = window.create(term.current(), 1, 2, w-1,h-2)
 local t = processTextToLineTable(contentsToText(work,chap))
-local maxscr = #t
+local maxscr = #t-h+2
 local maxchap = #work.contents
 
 drawTopBar(work)
@@ -236,7 +237,7 @@ writeText(t,scr,textwindow)
 while true do
   local chapstart = chap
   local scrstart = scr
-  sideBar(scr,#t)
+  sideBar(scr,maxscr)
   local ev = {os.pullEventRaw()}
   if ev[1]=="terminate" then 
     saveAndExit()
@@ -258,7 +259,7 @@ while true do
     textwindow = window.create(term.current(), 1, 2, w-1,h-2)
     t = processTextToLineTable(contentsToText(work,chap))
     local maxscr_t = maxscr
-    maxscr = #t
+    maxscr = #t-h+2
     -- old scroll / new scroll = old max scroll / new max scroll
     -- old scroll * new max scroll / old max scroll = new scroll
     scr = math.floor(scr*maxscr/maxscr_t)
@@ -281,7 +282,7 @@ while true do
   if chapstart~=chap then
     scr=0
     t = processTextToLineTable(contentsToText(work,chap))
-    maxscr = #t
+    maxscr = #t-h+2
     textwindow.clear()
     writeText(t,scr,textwindow)
     drawBottomBar(work,chap,maxchap)
