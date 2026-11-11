@@ -3,7 +3,7 @@ CC reader for tagged works
 
 Saves your reading progress for the last opened file
 
-Written during the 2026 October outage
+Written during the 2026 October-November outage
 ]]
 local args = {...}
 if args[1] == "help" then -- yes i know it can be a hashmap
@@ -24,7 +24,6 @@ if args[1] == "set" then
     print("...set fgcol 0 255 0 - set text colour to green")
     print("...set bgcol 255 255 255 - set background colour to white")
     print("...set accentcol 183 133 11 - set accent color to mustard yellow")
-    print("...set keys 1 - always show keybinds even if mouse controls are on")
     print("...set darkmode - swap text and bg colours")
     return
   end
@@ -37,12 +36,6 @@ if args[1] == "set" then
   end
   local argr = args[3]
   if argr == nil then err() end
-  if c=="keys" then
-    if argr~="1" and argr~="0" then err() end
-    settings.set("reader.showkeystrokes",argr=="1")
-    settings.save()
-    return
-  end
   local argg = args[4]
   local argb = args[5]
   if argb == nil or argg == nil then err() end
@@ -63,10 +56,13 @@ if args[1] == "set" then
   end
 end
 
-local scr = settings.get("reader.savestate.scroll",0)
+local w,h = term.getSize()
+
+local reltags = {"\x7f","&","\x0b\x0c","\x0b","\x0c","\x99"}
+local scr = math.floor(settings.get("reader.savestate.char",0)/(w-1))
 local chap = settings.get("reader.savestate.chapter",0) -- 0 is tag page
 local file = settings.get("reader.savestate.file",nil)
-if file==nil then
+if file~=args[1] then
   file=args[1]
   chap=0
   scr=0
@@ -75,11 +71,22 @@ end
 if file==nil then
   error("You have no open works; see help to open any file")
 end
-local f=fs.open(shell.resolve(args[1]),"r")
+local f=fs.open(shell.resolve(file),"r")
 if f==nil then error("No such file") end
-local work = f.readAll()
-work = textutils.unserialise(work)
-if work==nil then error("File is malformed; do you have enough disk space?") end
+local work_unpr = f.readAll()
+local work = textutils.unserialise(work_unpr)
+-- print(work)
+-- read()
+if work==nil then
+  work = {
+    ["title"]=shell.resolve(file),
+    ["author"]="unknown author",
+    ["summary"]="A plain-text document",
+    ["tags"]={"Unknown"},
+    ["rel"]=0,
+    ["contents"]={{["chapter"]="",["text"]=work_unpr,["notes"]={nil,nil}}}}
+end
+work_unpr = nil
 f.close()
 
 local BGC = colours.black
@@ -103,24 +110,18 @@ local function resetScreen()
   term.clear()
   term.setCursorPos(1,1)
 end
-local function drawTopBar()
-  term.setBackgroundColour(ACC)
-  term.setCursorPos(1,1)
-  term.clearLine()
-  term.setBackgroundColour(BGC)
-end
-local w,h = term.getSize()
+
 local function sideBar(line, totallines)
-  local yb = math.floor((h-2)*line/totallines)+2
-  for y=2,h-2 do
+  local yb = math.floor((h-2)*line/totallines)+1
+  for y=2,h-1 do
     term.setCursorPos(w,y)
-    if y==yb then write("\x08")
+    if y==yb then write("\x07")
     else write("|") end
   end
 end
 local function writeText(ttab,fromline,w)
   local y=2
-  for i=fromline+1,fromline+h-3 do
+  for i=fromline+1,fromline+h-2 do
     w.setCursorPos(1,y)
     w.write(ttab[i] or "")
     y=y+1
@@ -144,7 +145,7 @@ local function processTextToLineTable(text)
   return result
 end
 local function saveAndExit() -- todo: fix functions taking globals
-  settings.set("reader.savestate.scroll",scr)
+  settings.set("reader.savestate.char",scr*(w-1))
   settings.set("reader.savestate.chapter",chap)
   settings.set("reader.savestate.file",file)
   settings.save()
@@ -157,7 +158,13 @@ local function saveAndExit() -- todo: fix functions taking globals
 end
 local function titlePageToText(c)
   --["title"]="Test Work",["summary"]="a test summary\n\nwololo",["tags"]={"No Archive Warnings Apply","Original Character","Handholding"},
-  return "-- "..c.title.." --\n\nTags: "..table.concat(c.tags,", ").."\n\nSummary:\n"..c.summary
+  local title = c.title or "Unknown"
+  local author = c.author or "unknown"
+  local r = c.rel or 0
+  local rtag = reltags[r] or "none"
+  local taglist = table.concat(c.tags,", ") or "none"
+  local summary = c.summary or "none"
+  return "-- "..title.." --\nby "..author.."\n\n"..rtag.."\nTags: "..taglist.."\n\nSummary:\n"..summary
 end
 local function contentsToText(c,ch_id)
   if ch_id==0 then return titlePageToText(c) end
@@ -189,14 +196,42 @@ local function scrollRedrawTop(w, shift, scr, ttab)
   end
 end
 
--- print(textutils.serialise(work.contents))
--- read()
-local textwindow = window.create(term.current(), 1, 2, w-1,h-1)
+local function drawTopBar(t)
+  term.setBackgroundColour(ACC)
+  term.setCursorPos(1,1)
+  term.clearLine()
+  local title = t.title
+  if #title>w-4 then title = string.sub(title,1,w-4)..".." end
+  term.write(title)
+  term.setCursorPos(w,1)
+  term.write("X")
+  term.setBackgroundColour(BGC)
+end
+local function drawBottomBar(t,chap,maxchap)
+  term.setBackgroundColour(ACC)
+  term.setCursorPos(1,h)
+  term.clearLine()
+  if chap>0 then term.write("\x11") end -- arrow left
+
+  local title = nil
+  if chap>0 then title="Ch. "..chap..". "..t.contents[chap].chapter
+  else title="Tags and summary" end
+  if #title>w-4 then title = string.sub(title,1,w-6)..".." end
+  term.setCursorPos((w-#title)/2,h)
+  term.write(title)
+
+  term.setCursorPos(w,h)
+  if chap<maxchap then term.write("\x10") end -- arrow right
+  term.setBackgroundColour(BGC)
+end
+
+local textwindow = window.create(term.current(), 1, 2, w-1,h-2)
 local t = processTextToLineTable(contentsToText(work,chap))
 local maxscr = #t
 local maxchap = #work.contents
 
-drawTopBar()
+drawTopBar(work)
+drawBottomBar(work,chap,maxchap)
 writeText(t,scr,textwindow)
 while true do
   local chapstart = chap
@@ -208,16 +243,32 @@ while true do
     break
   elseif ev[1]=="key" then
     local k = ev[2]
-    if k==keys.down then scr=scr+1
+    if k==keys.down or k==keys.space then scr=scr+1 -- i REALLY need a hashmap here
     elseif k==keys.up then scr=scr-1
     elseif k==keys.left then chap=chap-1
-    elseif k==keys.right then chap=chap+1
-    elseif k==keys.grave then
+    elseif k==keys.right or k==keys.tab then chap=chap+1
+    elseif k==keys.grave or k==keys.x or k==keys.enter or k==keys.backspace then
       saveAndExit()
       break
     end
-  elseif ev[1]=="mouse_scroll" then
-    scr=scr+ev[2] -- todo: possibly invert?
+  elseif ev[1]=="mouse_scroll" then scr=scr+ev[2]
+  elseif ev[1]=="term_resize" then
+    w,h = term.getSize()
+
+    textwindow = window.create(term.current(), 1, 2, w-1,h-2)
+    t = processTextToLineTable(contentsToText(work,chap))
+    local maxscr_t = maxscr
+    maxscr = #t
+    -- old scroll / new scroll = old max scroll / new max scroll
+    -- old scroll * new max scroll / old max scroll = new scroll
+    scr = math.floor(scr*maxscr/maxscr_t)
+    scrstart=scr
+    
+    drawTopBar(work)
+    drawBottomBar(work,chap,maxchap)
+    writeText(t,scr,textwindow)
+  elseif ev[1]=="mouse_click" then
+     
   end
   if chap<0 then chap=0 end
   if scr<0 then scr=0 end
@@ -233,5 +284,6 @@ while true do
     maxscr = #t
     textwindow.clear()
     writeText(t,scr,textwindow)
+    drawBottomBar(work,chap,maxchap)
   end
 end
