@@ -128,21 +128,38 @@ local function writeText(ttab,fromline,w)
   end
 end
 local function processTextToLineTable(text)
-  local maxw=w-1
+  local maxw = w - 1
 
-  local result = {} -- https://stackoverflow.com/a/72298997
+  local result = {}
   for line in string.gmatch(text .. "\n", "(.-)\n") do
     table.insert(result, line)
   end
-  local el=1
-  while el<=#result do
-    if #result[el]>maxw then
-      table.insert(result,el,string.sub(result[el],1,maxw)) -- todo: break by last space instead
-      result[el+1]=string.sub(result[el+1],maxw+1)
+
+  local el = 1
+  while el <= #result do
+    if #result[el] > maxw then
+      local line = result[el]
+
+      local breakPos = nil
+      for i = maxw, 1, -1 do
+        if string.sub(line, i, i) == " " then
+          breakPos = i
+          break
+        end
+      end
+
+      if breakPos then
+        table.insert(result, el, string.sub(line, 1, breakPos - 1))
+        result[el + 1] = string.sub(line, breakPos + 1)
+      else
+        table.insert(result, el, string.sub(line, 1, maxw))
+        result[el + 1] = string.sub(line, maxw + 1)
+      end
     end
-    el=el+1
+    el = el + 1
   end
-  table.insert(result,"") -- last line deletes itself sometimes for some reason, so if this is the last line nobody will notice
+
+  table.insert(result, "")
   return result
 end
 local function saveAndExit() -- todo: fix functions taking globals
@@ -158,7 +175,6 @@ local function saveAndExit() -- todo: fix functions taking globals
   print("Progress saved: chapter "..chap..", line "..scr)
 end
 local function titlePageToText(c)
-  --["title"]="Test Work",["summary"]="a test summary\n\nwololo",["tags"]={"No Archive Warnings Apply","Original Character","Handholding"},
   local title = c.title or "Unknown"
   local author = c.author or "unknown"
   local r = c.rel or 0
@@ -268,8 +284,24 @@ while true do
     drawTopBar(work)
     drawBottomBar(work,chap,maxchap)
     writeText(t,scr,textwindow)
-  elseif ev[1]=="mouse_click" then
-     
+  elseif ev[1]=="mouse_click" or ev[1]=="monitor_touch" then
+    local x = ev[3]
+    local y = ev[4]
+    if y==1 and x==w then
+      saveAndExit()
+      break
+    elseif y==h then
+      if x==1 then
+        chap=chap-1
+      elseif x==w then
+        chap=chap+1
+      end -- todo: add chapter selection
+    elseif x==w then
+      y=y-1
+      local maxh=h-2
+      local p = y/maxh*maxscr
+      scr=math.floor(p)
+    end
   end
   if chap<0 then chap=0 end
   if scr<0 then scr=0 end
