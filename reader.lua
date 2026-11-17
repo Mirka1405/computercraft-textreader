@@ -58,7 +58,8 @@ end
 
 local w,h = term.getSize()
 
-local reltags = {"\x7f","&","\x0b\x0c","\x0b","\x0c","\x99"}
+-- archive tag - 0 none, 1 gen, 2 fm, 3 m, 4 f, 5 multi
+local reltags = {"\x7f","&","\x0c\x0b","\x0b","\x0c","\x99"}
 local scr = math.floor(settings.get("reader.savestate.char",0)/(w-1))
 local chap = settings.get("reader.savestate.chapter",0) -- 0 is tag page
 local file = settings.get("reader.savestate.file",nil)
@@ -103,7 +104,7 @@ if term.isColour() then
   showuihints = settings.get("reader.showkeystrokes", false)
   term.setPaletteColour(BGC,settings.get("reader.bgcol", 0xffffff))
   term.setPaletteColour(FGC,settings.get("reader.fgcol", 0))
-  term.setPaletteColour(ACC,settings.get("reader.accentcol", 0x940000))
+  term.setPaletteColour(ACC,settings.get("reader.accentcol", 0x840000))
 end
 
 local function resetScreen()
@@ -177,8 +178,8 @@ end
 local function titlePageToText(c)
   local title = c.title or "Unknown"
   local author = c.author or "unknown"
-  local r = c.rel or 0
-  local rtag = reltags[r] or "none"
+  local r = c.rel or 1
+  local rtag = reltags[r-1] or reltags[1]
   local taglist = table.concat(c.tags,", ") or "none"
   local summary = c.summary or "none"
   return "-- "..title.." --\nby "..author.."\n\n"..rtag.."\nTags: "..taglist.."\n\nSummary:\n"..summary
