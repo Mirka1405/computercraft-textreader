@@ -1,9 +1,8 @@
-import requests as rq
 import re
+from sys import argv
 
 def replace_tags(s):
   s=re.sub(r' \w+?=.+?>',">",s) # remove html attrs
-  # s=re.sub(r'<h\d>',">",s) # remove html attrs
   return s\
   .replace("<p>","")\
   .replace("</p>","\n\n")\
@@ -35,21 +34,13 @@ def replace_tags(s):
   .replace(chr(160)," ")\
   .strip()
 
-# def count_starting_spaces(t: str):
-#   for i in range(len(t)):
-#     if t[i]!=" ": return i
-#   return len(t)
-# def replace_starting_space(t: str):
-#   return "".join(map(lambda s: s[count_starting_spaces(s):],t.splitlines()))
 def replace_starting_space(t):
   return re.sub(r'^ +',"",t,flags=re.MULTILINE)
 assert replace_starting_space("""   a
   b d
 c""")=="a\nb d\nc"
 
-id = 84950606
-# html = rq.get(f"https://archiveofourown.org/downloads/{id}/a.html").text
-html = open("archivetest.html",encoding="utf-8").read()
+html = open(argv[1] if len(argv)>2 else input("Enter path of the downloaded file in .html format: "),encoding="utf-8").read()
 
 chapters = []
 tags = []
