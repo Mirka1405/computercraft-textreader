@@ -22,6 +22,9 @@ def replace_tags(s):
   .replace("—",'-')\
   .replace("&ldquo;",'"')\
   .replace("&rdquo;",'"')\
+  .replace("&#39;","'")\
+  .replace("<blockquote>",'')\
+  .replace("</blockquote>",'')\
   .replace("<span>",'')\
   .replace("</span>",'')\
   .replace("<h1>",'# ')\
@@ -31,6 +34,7 @@ def replace_tags(s):
   .replace("<i>",'_')\
   .replace("</i>",'_')\
   .replace("‘","'")\
+  .replace("’","'")\
   .replace(chr(160)," ")\
   .strip()
 
@@ -40,14 +44,14 @@ assert replace_starting_space("""   a
   b d
 c""")=="a\nb d\nc"
 
-html = open(argv[1] if len(argv)>2 else input("Enter path of the downloaded file in .html format: "),encoding="utf-8").read()
+html = open(argv[1] if len(argv)>1 else input("Enter path of the downloaded file in .html format: "),encoding="utf-8").read()
 
 chapters = []
 tags = []
 # chapter = {"chapter":"abc","text":"""aaaaaa<br>""","notes":[None,"abcdef"]}
 point = html.find("<b>")
 work_title = html[point+3:(point:=html.find("</b>",point))]
-for i in ("Rating","Archive Warning","Category","Fandom","Character","Additional Tags"):
+for i in ("Rating","Archive Warning","Category","Categories","Fandom","Fandoms","Character","Characters","Relationship","Relationships","Additional Tags"):
   newpoint = html.find(f"<dt>{i}:</dt>",point)
   if newpoint==-1:continue
   point=newpoint
@@ -56,7 +60,7 @@ for i in ("Rating","Archive Warning","Category","Fandom","Character","Additional
     point = html.find('">',point)
     endpoint = html.find("</a>",point)
     endgroup = html.find("</dd>",point)
-    tags.append(html[point+2:(point:=endpoint)])
+    tags.append(replace_tags(html[point+2:(point:=endpoint)]))
     if endpoint+4==endgroup: break
 
 rel = 0
@@ -88,6 +92,15 @@ while multiple_chapters:
   chap_title=" ".join(chap_title.split(maxsplit=2)[2:])
   # print("chapter",chap_title)
   notes = [None,None]
+  summary = None
+  chap_summary = html.find('<p>Chapter Summary</p>',point)
+  if chap_summary!=-1:
+    end_chap_summary=html.find("</blockquote>",chap_summary)
+    chap_summary=html.find('<blockquote class="userstuff">',chap_summary,end_chap_summary)
+    assert chap_summary!=-1
+    chap_summary=html.find('">',chap_summary+1)
+    summary = replace_tags(html[chap_summary+2:end_chap_summary])
+    # point = end_chap_summary
   start_note = html.find('<p>Chapter Notes</p>',point)
   if start_note!=-1:
     end_note=html.find("</div>",start_note)
@@ -95,8 +108,11 @@ while multiple_chapters:
       start_note=html.find('<blockquote class="userstuff">',start_note,end_note)
       assert start_note!=-1
       start_note=html.find('">',start_note+1)
-      notes[0] = replace_tags(html[point+2:(point:=html.find("</blockquote>",start_note,end_note))])
+      notes[0] = replace_tags(html[start_note+2:html.find("</blockquote>",start_note,end_note)])
       point = end_note
+  if summary:
+    if notes[0] is None: notes[0]="Summary: "+summary
+    else: notes[0]+="\n\nSummary: "+summary
 
   content = ""
   point=html.find('<!--chapter content-->',point)
@@ -110,10 +126,10 @@ while multiple_chapters:
 
   start_note = html.find('<p>Chapter End Notes</p>',endpoint,endpoint+92)
   # print(html[start_note:start_note+400])
-  print("note start",start_note)
+  # print("note start",start_note)
   if start_note!=-1:
     end_note=html.find("</blockquote>",start_note)
-    print("note end",end_note)
+    # print("note end",end_note)
     start_note=html.find('<blockquote class="userstuff">',start_note,end_note)
     # print(html[start_note:start_note+400])
     assert start_note!=-1
@@ -145,4 +161,4 @@ n = lambda s: "nil" if s is None else f"[[{s}]]"
 chapstr=",".join(('{["chapter"]=[[%s]],["text"]=[[%s]],["notes"]={%s,%s}}' % (v["chapter"],v["text"],n(v["notes"][0]),n(v["notes"][1]))) for v in chapters)
 
 print('{["author"]="%s",["title"]="%s", ["summary"]=[[%s]], ["rel"]=%d, ["tags"]={%s}, ["contents"]={%s}}'
-      % (author, work_title, work_summary, rel, tagstr, chapstr), file=open(f"{id}.ftxt","w",encoding="utf-8"))
+      % (author, work_title, work_summary, rel, tagstr, chapstr), file=open(f"{__import__("random").randint(1,1000000)}.ftxt","w",encoding="utf-8"))

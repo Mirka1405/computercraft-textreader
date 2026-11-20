@@ -179,7 +179,7 @@ local function titlePageToText(c)
   local title = c.title or "Unknown"
   local author = c.author or "unknown"
   local r = c.rel or 1
-  local rtag = reltags[r-1] or reltags[1]
+  local rtag = reltags[r+1] or reltags[1]
   local taglist = table.concat(c.tags,", ") or "none"
   local summary = c.summary or "none"
   return "-- "..title.." --\nby "..author.."\n\n"..rtag.."\nTags: "..taglist.."\n\nSummary:\n"..summary
@@ -193,7 +193,7 @@ local function contentsToText(c,ch_id)
   local text = c.text
   local startnotes = ""
   local endnotes = ""
-  if c.notes[1] then startnotes="\nNotes:\n"..c.notes[1].."----------\n" end
+  if c.notes[1] then startnotes="\nNotes:\n"..c.notes[1].."\n----------\n" end
   if c.notes[2] then endnotes="\n\nNotes:\n"..c.notes[2] end
   return title.."\n\n"..startnotes..text..endnotes
 end
@@ -202,7 +202,7 @@ local function scrollRedrawBottom(w, shift, scr, ttab)
   local wh = h-2
   for y=wh-shift,wh do
     w.setCursorPos(1,y)
-    w.write(ttab[scr+y] or "")
+    w.write(ttab[scr+y-1] or "")
   end
 end
 local function scrollRedrawTop(w, shift, scr, ttab)
